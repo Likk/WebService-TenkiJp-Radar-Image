@@ -1,0 +1,28 @@
+This is Perl module WebService::TenkiJp::Radar::Image.
+
+INSTALLATION
+
+WebService::TenkiJp::Radar::Image installation is straightforward. If your CPAN shell is set up,
+you should just be able to do
+
+    % git clone git://github.com/Likk/WebService-TenkiJp-Radar-Image.git
+    % cd WebService-TenkiJp-Radar-Image
+
+Download it, unpack it, then build it as per the usual:
+
+    % perl Makefile.PL
+    % make && make test
+
+Then install it:
+
+    % make install
+
+DOCUMENTATION
+
+WebService::TenkiJp::Radar::Image documentation is available as in POD. So you can do:
+
+    % perldoc WebService::TenkiJp::Radar::Image
+
+to read the documentation online with your favorite pager.
+
+likkradyus
