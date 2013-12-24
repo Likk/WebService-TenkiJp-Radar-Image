@@ -107,7 +107,9 @@ sub get_image {
   my $res     = $self->{ua}->get("@{[$BASE_URL]}/forecast/pref-@{[$pref]}.html");
   my $content = $res->decoded_content();
   my $image_url;
-  if($content =~ m{img\ssrc="(http://.*?/static_images/rader/.*?/pref.*\.jpg)}){
+
+  # http://az416740.vo.msecnd.net/static-images/rader/recent_entry/pref_16/small.jpg
+  if($content =~ m{img\ssrc="(http://.*?/static-images/rader/recent_entry/pref_[0-9]+/small.jpg)}){
     $image_url = $1;
   }
   Carp::confess('cant find image url') unless $image_url;
