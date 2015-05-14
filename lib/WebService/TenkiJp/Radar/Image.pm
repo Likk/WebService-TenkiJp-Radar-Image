@@ -35,13 +35,13 @@ use strict;
 use warnings;
 use utf8;
 use Carp;
+use HTTP::Date qw/parse_date/;
 use WWW::Mechanize;
-use Web::Scraper;
 
 use base qw(Class::Accessor::Fast);
-__PACKAGE__->mk_accessors(qw/pref pref_list/);
+__PACKAGE__->mk_accessors(qw/pref/);
 
-our $VERSION = '0.01';
+our $VERSION = '1.00';
 our $PREFECTURE_LIST = [qw/
 道北
 道央
@@ -94,29 +94,74 @@ our $PREFECTURE_LIST = [qw/
 鹿児島
 沖縄
 /];
+
+# どのエリアにどの県が入るか
+our $AREA = {
+    1  => [1..4],
+    2  => [5..10],
+    3  => [qw/11 12 13 14 15 16 17 22 23/], #関東と甲信
+    4  => [18..21],
+    5  => [24..27],
+    6  => [28..33],
+    7  => [34..38],
+    8  => [39..42],
+    9  => [43..49],
+    10 => [50],
+};
 our $BASE_URL        = q{http://tenki.jp};
 
+sub area_id_from_pref_id {
+    my $self = shift;
+    my $pref = shift;
+    for my $area_id (sort keys %$AREA){
+        my $found = scalar( grep { $_ == $pref; } @{ $AREA->{$area_id} });
+        return $area_id if $found;
+    }
+    die 'cant find area id';
+}
 
 sub get_image {
   my $self = shift;
   my %args = @_;
   my $pref = defined $args{pref} ? $args{pref} : $self->pref;
+  my $date = $args{date};
+
   Carp::confess('requested pref code') unless $pref;
 
-  $self->_make_ua();
-  my $res     = $self->{ua}->get("@{[$BASE_URL]}/forecast/pref-@{[$pref]}.html");
-  my $content = $res->decoded_content();
   my $image_url;
+  my $img_reg =
+qr{img\ssrc="(http://(.*?/static-images/rader)/\d{4}/\d{2}/\d{2}/\d{2}/\d{2}/\d{2}/pref_[0-9]+/large.jpg)};
+  # http://az416740.vo.msecnd.net/static-images/rader/2015/05/14/20/20/00/pref_16/large.jpg
 
-  # http://az416740.vo.msecnd.net/static-images/rader/recent_entry/pref_16/small.jpg
-  if($content =~ m{img\ssrc="(http://.*?/static-images/rader/recent_entry/pref_[0-9]+/small.jpg)}){
-    $image_url = $1;
+  $self->_make_ua();
+  my $res     = $self->{ua}->get(sprintf("%s/radar/%s/%s/",
+      $BASE_URL,
+      $self->area_id_from_pref_id($pref),
+      $pref)
+  );
+  if($res){
+    my $content = $res->decoded_content();
+    if($content =~ $img_reg){
+        $image_url = $1;
+        if($date){
+            my @dt   = parse_date("$date +0900");
+            $image_url = sprintf(
+                "http://%s/%02d/%02d/%02d/%02d/%02d/00/pref_%s/large.jpg",
+                $2,
+                $dt[0],
+                $dt[1],
+                $dt[2],
+                $dt[3],
+                $dt[4],
+                $pref,
+            );
+        }
+        $res     = $self->{ua}->get($image_url);
+        $content = $res->decoded_content();
+        return $content
+    }
+    Carp::confess('cant find image url') unless $image_url;
   }
-  Carp::confess('cant find image url') unless $image_url;
-
-  $res     = $self->{ua}->get($image_url);
-  $content = $res->decoded_content();
-  return $content
 }
 
 sub get_pref_list {
