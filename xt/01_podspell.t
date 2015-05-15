@@ -8,4 +8,6 @@ __DATA__
 likkradyus
 perl {at} li {dot} que {dot} jp
 WebService::TenkiJp::Radar::Image
+Downloader
+http
 tenki

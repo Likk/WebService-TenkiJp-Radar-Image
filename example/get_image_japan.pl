@@ -4,8 +4,8 @@ use strict;
 use warnings;
 use WebService::TenkiJp::Radar::Image;
 
-my $image = WebService::TenkiJp::Radar::Image->new()->get_image(prefecture => 16);
-open my $fh, '>', './image_tokyo.jpg';
+my $image = WebService::TenkiJp::Radar::Image->new()->get_image();
+open my $fh, '>', './image_ja.jpg';
 binmode $fh;
 print $fh $image;
 close $fh;
