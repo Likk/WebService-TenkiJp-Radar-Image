@@ -16,16 +16,15 @@ my $yesterday = HTTP::Date::time2iso(time - (60 * 60 * 24));
         isa_ok($tenki, 'WebService::TenkiJp::Radar::Image');
     };
 
-    subtest 'get_pref_list' => sub {
-       my $pref_list =  $tenki->get_pref_list();
+    subtest 'show_prefecture_list' => sub {
+       my $pref_list =  $tenki->show_prefecture_list();
        isa_ok $pref_list, 'ARRAY',     'pref list is array ref';
        isa_ok $pref_list->[0] ,'HASH', 'a hash in a list in a array';
        my $pref_name_test = 0;
        for my $row (@$pref_list){
            isa_ok $row ,'HASH', 'a hash in a list in a array';
-           my $pref_name = [keys %$row]->[0];
-           if($pref_name eq '東京'){
-               $pref_name_test = 1 if $row->{$pref_name} == 16;
+           if(defined $row->{prefecture} and $row->{prefecture} == 16) {
+               $pref_name_test = 1 if $row->{name} == '東京都';
            }
        }
        ok $pref_name_test, 'tokyo found';

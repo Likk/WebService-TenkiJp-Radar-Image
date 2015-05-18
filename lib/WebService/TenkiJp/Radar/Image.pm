@@ -11,16 +11,12 @@ WebService::TenkiJp::Radar::Image - tenki.jp weather radar image.
   use WebService::TenkiJp::Radar::Image;
   use YAML;
 
-  warn YAML::Dump WebService::TenkiJp::Radar::Image->get_pref_list();
+  warn YAML::Dump WebService::TenkiJp::Radar::Image->show_prefecture_list();
 
-  my $radar = WebService::TenkiJp::Radar::Image->new(prefecture => 16, #Tokyo);
-  my $image = $radar->get_image;
+  my $radar = WebService::TenkiJp::Radar::Image->new()
+  my $image = $radar->get_image(prefecture => 16);     #tokyo
 
-  OR
-
-  my $image = WebService::TenkiJp::Radar::Image->new()->get_image(prefecture => 16);
-
-  open( my $fh, '>', /path/to/image.jpg);
+  open( my $fh, '>', /path/to/image.jpg) or die;
   binmode $fh;
   print $fh $image;
   close $fh;
@@ -38,10 +34,11 @@ use base       qw/Class::Accessor::Fast/;
 use Carp;
 use HTTP::Date qw/parse_date/;
 use WWW::Mechanize;
+use Web::Scraper;
 
 __PACKAGE__->mk_accessors(qw/prefecture area/);
 
-our $VERSION  = '2.00';
+our $VERSION  = '3.00';
 our $BASE_URL = q{http://tenki.jp};
 
 =head1 CONSTRUCTOR AND STARTUP
@@ -152,8 +149,7 @@ sub get_image {
   # http://az416740.vo.msecnd.net/static-images/rader/2015/05/15/14/50/00/area_1/large.jpg       #地方情報
   # http://az416740.vo.msecnd.net/static-images/rader/2015/05/15/14/55/00/japan_detail/large.jpg #日本全体
 
-  $self->_make_ua();
-  if(my $res = $self->{ua}->get($self->get_radar_path(%args))){
+  if(my $res = $self->_ua()->get($self->get_radar_path(%args))){
     my $content = $res->decoded_content();
     if($content =~ $img_reg){
         $image_url = $1;
@@ -172,7 +168,7 @@ sub get_image {
                 $args{prefecture} || $self->prefecture || $args{area} || $self->{area} || 'detail',
             );
         }
-        $res     = $self->{ua}->get($image_url);
+        $res     = $self->_ua()->get($image_url);
         $content = $res->decoded_content();
         return $content
     }
@@ -180,36 +176,65 @@ sub get_image {
   }
 }
 
-=head2 get_pref_list
+=head2 show_prefecture_list
 
-tenki.jp 県エリア名一覧を取得する
+tenki.jp 県エリア名一覧
+北海道が4つの地域名になっていて、純粋な都道府県一覧と異なる
+
+北海道は prefecture がなく area しかない。
+都道府県には含まれない小笠原諸島が　prefecture をもっているなど、前提知識が必要なのでそれを出力する
+
 
 =cut
 
-sub get_pref_list {
+sub show_prefecture_list {
   my $self = shift;
-  my $in_pref_list = [];
-  my $prefecture_list = $self->_prefecture_list();
-  for my $index (0..$#{$prefecture_list}){
-    push $in_pref_list, { $prefecture_list->[$index] => $index + 1 };
+
+  my $res     = $self->_ua->get($BASE_URL);
+  my $content = $res->decoded_content();
+
+  my $scraper = scraper {
+    process '//div[@id="wrap_weathersVarious"]', data => scraper {
+      process '//a', 'links[]' => scraper {
+        process '/*', 'href' => '@href',
+                      'name' => 'TEXT';
+      };
+    };
+    result qw/data/;
+  };
+  my $links = $scraper->scrape($content)->{links};
+  my @prefecture_list = sort {
+    $a->{area} <=> $b->{area} or ($a->{prefecture} || 0) <=> ($b->{prefecture}|| 0)
   }
-  return $in_pref_list;
+  map {
+    my @traversals = split m{/}, $_->{href};
+    my $list = {
+      name       => $_->{name},
+      area       => $traversals[2],
+    };
+    $list->{prefecture} = $traversals[3] if $traversals[3];
+    $list;
+  }
+  grep {
+    defined $_->{name} and $_->{name} ne ''
+  } @$links;
+  return [@prefecture_list];
 }
 
 =head1 PRIVATE METHODS
 
 =over
 
-=item B<_make_ua>
+=item B<_ua>
 
-http access 用の User Agent を作る
+http access 用の User Agent を返す
 
 =cut
 
-sub _make_ua {
+sub _ua {
   my $self = shift;
-  my $ua   = WWW::Mechanize->new(agent => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:8.0) Gecko/20100101 Firefox/8.0');
-  $self->{ua} = $ua;
+  $self->{ua}  //= WWW::Mechanize->new(agent => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:8.0) Gecko/20100101 Firefox/8.0');
+  return $self->{ua};
 }
 
 =item B<_area_prefecture>
@@ -231,69 +256,6 @@ sub _area_prefecture {
     9  => [43..49],
     10 => [50],
   };
-}
-
-=item B<_prefecture_list>
-
-tenki.jp 県エリア名一覧
-北海道が4つの地域名になっていて、純粋な都道府県一覧と異なる
-
-=cut
-
-sub _prefecture_list {
-  my $self = shift;
-  return [qw/
-    道北
-    道央
-    道東
-    道南
-    青森
-    岩手
-    宮城
-    秋田
-    山形
-    福島
-    茨城
-    栃木
-    群馬
-    埼玉
-    千葉
-    東京
-    神奈川
-    新潟
-    富山
-    石川
-    福井
-    山梨
-    長野
-    岐阜
-    静岡
-    愛知
-    三重
-    滋賀
-    京都
-    大阪
-    兵庫
-    奈良
-    和歌山
-    鳥取
-    島根
-    岡山
-    広島
-    山口
-    徳島
-    香川
-    愛媛
-    高知
-    福岡
-    佐賀
-    長崎
-    熊本
-    大分
-    宮崎
-    鹿児島
-    沖縄
-  /];
 }
 
 =back
