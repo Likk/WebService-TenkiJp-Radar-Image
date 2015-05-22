@@ -2,6 +2,7 @@ use strict;
 use warnings;
 use utf8;
 use Test::More;
+use Test::Exception;
 use HTTP::Date;
 use WebService::TenkiJp::Radar::Image;
 
@@ -53,6 +54,13 @@ my $yesterday = HTTP::Date::time2iso(time - (60 * 60 * 24));
         like $image, qr/^\xFF\xD8/, 'image is jpg';
     };
 
+    subtest 'get_image_at_prefecture_forecast' => sub  {
+        my $image = $tenki->get_image( forecast => 360);
+        ok $image, 'get image contents';
+        like $image, qr/^\xFF\xD8/, 'image is jpg';
+        throws_ok { $tenki->get_image( forecast => 1) } qr/forcast argument can have one of/, 'argument check.';
+    };
+
     subtest 'get_image in area' => sub {
         my $image = $tenki->get_image( area => 3 );
         ok $image, 'get image contents';
@@ -64,8 +72,6 @@ my $yesterday = HTTP::Date::time2iso(time - (60 * 60 * 24));
         ok $image, 'get image contents';
         like $image, qr/^\xFF\xD8/, 'image is jpg';
     };
-
-
 }
 
 done_testing();

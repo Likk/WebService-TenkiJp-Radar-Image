@@ -38,7 +38,7 @@ use Web::Scraper;
 
 __PACKAGE__->mk_accessors(qw/prefecture area/);
 
-our $VERSION  = '3.00';
+our $VERSION  = '3.01';
 our $BASE_URL = q{http://tenki.jp};
 
 =head1 CONSTRUCTOR AND STARTUP
@@ -134,6 +134,15 @@ sub get_radar_path {
 
     my $image = $radar->get_image(area => 3);
 
+=item B<date>
+
+特定日付の画像を取得する。形式はHTTP::Date::parse_date が読み取れる形式
+    my $image = $radar->get_image(date => '2015-01-01 12:00:00');
+
+=item B<forecast>
+予報画像を取得する。60分後から360分後まで60分刻みの引数が許される
+    my $image = $radar->get_image(forecast => 360);
+
 =back
 
 =cut
@@ -141,8 +150,10 @@ sub get_radar_path {
 sub get_image {
   my $self = shift;
   my %args = @_;
-  my $date = $args{date};
-
+  my $date     = $args{date};
+  my $forecast = $args{forecast};
+  die 'forcast argument can have one of (60|120|180|240|300|360) values.'
+    if ($forecast && $forecast !~ m{(60|120|180|240|300|360)});
   my $image_url;
   my $img_reg = qr{img\ssrc="(http://(.*?/static-images/rader)/\d{4}/\d{2}/\d{2}/\d{2}/\d{2}/\d{2}/(?:(pref|area)_[0-9]+|japan_detail)/large.jpg)};
   # http://az416740.vo.msecnd.net/static-images/rader/2015/05/14/20/20/00/pref_16/large.jpg      #県情報
@@ -153,7 +164,24 @@ sub get_image {
     my $content = $res->decoded_content();
     if($content =~ $img_reg){
         $image_url = $1;
-        if($date){
+        if($forecast){
+            my $base_path = $2;
+            my $area      = $3 || 'japan';
+            my $datetime  = HTTP::Date::time2iso(time);
+            $datetime  =~ s{[-:\s]}{}g;
+            $datetime  =  substr($datetime, 0, 10) .  '0000';
+            $base_path =~ s{rader}{rainmesh};
+
+            $image_url = sprintf(
+                "http://%s/%d/%s_%s/large.jpg?%d",
+                $base_path,
+                $forecast,
+                $area,
+                $args{prefecture} || $self->prefecture || $args{area} || $self->{area} || 'detail',
+                $datetime
+            );
+        }
+        elsif($date){
             my @dt   = parse_date("$date +0900");
             my $min  = int($dt[4]/10) * 10; #分単位画像はないので43分なら40分にと切り捨てる
             $image_url = sprintf(
