@@ -25,7 +25,7 @@ my $yesterday = HTTP::Date::time2iso(time - (60 * 60 * 24));
        for my $row (@$pref_list){
            isa_ok $row ,'HASH', 'a hash in a list in a array';
            if(defined $row->{prefecture} and $row->{prefecture} == 16) {
-               $pref_name_test = 1 if $row->{name} == '東京都';
+               $pref_name_test = 1 if $row->{name} eq '東京都';
            }
        }
        ok $pref_name_test, 'tokyo found';
