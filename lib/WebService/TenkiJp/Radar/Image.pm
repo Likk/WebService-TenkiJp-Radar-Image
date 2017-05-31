@@ -191,7 +191,6 @@ sub get_image {
     if(my $res = $self->_ua()->get($self->get_radar_path(%args))){
         my $image_url;
         my $content = $res->decoded_content();
-        warn $date;
         if($forecast && $content =~ $FORECAST_IMAGE_REGEXP){
             $image_url = $1;
             my $base_path = $2;
