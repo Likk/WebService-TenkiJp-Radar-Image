@@ -4,7 +4,7 @@ package WebService::TenkiJp::Radar::Image;
 
 =head1 NAME
 
-WebService::TenkiJp::Radar::Image - tenki.jp weather radar image.
+  WebService::TenkiJp::Radar::Image - tenki.jp weather radar image.
 
 =head1 SYNOPSIS
 
@@ -23,14 +23,14 @@ WebService::TenkiJp::Radar::Image - tenki.jp weather radar image.
 
 =head1 DESCRIPTION
 
-WebService::TenkiJp::Radar::Image will Downloader weather radar image of the tenki.jp.
+  WebService::TenkiJp::Radar::Image will Downloader weather radar image of the tenki.jp.
 
 =cut
 
 use strict;
 use warnings;
 use utf8;
-use base       qw/Class::Accessor::Fast/;
+use parent       qw/Class::Accessor::Fast/;
 use Carp;
 use HTTP::Date qw/parse_date/;
 use WWW::Mechanize;
@@ -38,8 +38,41 @@ use Web::Scraper;
 
 __PACKAGE__->mk_accessors(qw/prefecture area/);
 
-our $VERSION  = '3.01';
-our $BASE_URL = q{http://tenki.jp};
+=head1 PACKAGE GLOBAL VARIABLE
+
+=orver
+
+=item B<VERSION> this version.
+
+=item B<BASE_URL> tenki jp root address.
+
+=item B<RADAR_IMAGE_REGEXP>
+
+  radar image link tag regexp.
+  #XXX: 2008/08 ~ 2017/05/31
+  #XXX: http://az416740.vo.msecnd.net/static-images/rader/2015/05/14/20/20/00/pref_16/large.jpg      #県情報
+  #XXX: http://az416740.vo.msecnd.net/static-images/rader/2015/05/15/14/50/00/area_1/large.jpg       #地方情報
+  #XXX: http://az416740.vo.msecnd.net/static-images/rader/2015/05/15/14/55/00/japan_detail/large.jpg #日本全体
+  #XXX: 2017/05/31 ~
+  #XXX: https://static.tenki.jp/static-images/radar/2017/05/31/09/15/00/pref-16-large.jpg      #県情報
+  #XXX: https://static.tenki.jp/static-images/radar/2017/05/30/12/00/00/area-3-large.jpg       #地方情報
+  #XXX: https://static.tenki.jp/static-images/radar/2017/05/30/12/00/00/japan-detail-large.jpg #日本全体
+
+=item B<FORECAST_IMAGE_REGEXP>
+
+forecast radar image link tag regexp.
+
+  XXX: https://static.tenki.jp/static-images/rainmesh/360/pref-16-large.jpg pref, forecast on after 360 minuites.
+
+=back
+
+=cut
+
+our $VERSION               = '3.02';
+our $BASE_URL              = q{https://tenki.jp};
+our $RADAR_IMAGE_REGEXP    = qr{img\ssrc="(https://(static.tenki.jp/static-images/radar)/\d{4}/\d{2}/\d{2}/\d{2}/\d{2}/\d{2}/(?:(pref|area)-[0-9]+|japan-detail)-large.jpg)};
+
+our $FORECAST_IMAGE_REGEXP = qr{img\ssrc="(https://(static.tenki.jp/static-images/rainmesh)/\d{2,3}/(?:pref|area-[0-9]+|japan-detail)-large.jpg)};
 
 =head1 CONSTRUCTOR AND STARTUP
 
@@ -148,23 +181,19 @@ sub get_radar_path {
 =cut
 
 sub get_image {
-  my $self = shift;
-  my %args = @_;
-  my $date     = $args{date};
-  my $forecast = $args{forecast};
-  die 'forcast argument can have one of (60|120|180|240|300|360) values.'
-    if ($forecast && $forecast !~ m{(60|120|180|240|300|360)});
-  my $image_url;
-  my $img_reg = qr{img\ssrc="(http://(.*?/static-images/rader)/\d{4}/\d{2}/\d{2}/\d{2}/\d{2}/\d{2}/(?:(pref|area)_[0-9]+|japan_detail)/large.jpg)};
-  # http://az416740.vo.msecnd.net/static-images/rader/2015/05/14/20/20/00/pref_16/large.jpg      #県情報
-  # http://az416740.vo.msecnd.net/static-images/rader/2015/05/15/14/50/00/area_1/large.jpg       #地方情報
-  # http://az416740.vo.msecnd.net/static-images/rader/2015/05/15/14/55/00/japan_detail/large.jpg #日本全体
+    my $self = shift;
+    my %args = @_;
+    my $date     = $args{date} || HTTP::Date::time2iso(time);
+    my $forecast = $args{forecast};
+    die 'forcast argument can have one of (60|120|180|240|300|360) values.'
+      if ($forecast && $forecast !~ m{(60|120|180|240|300|360)});
 
-  if(my $res = $self->_ua()->get($self->get_radar_path(%args))){
-    my $content = $res->decoded_content();
-    if($content =~ $img_reg){
-        $image_url = $1;
-        if($forecast){
+    if(my $res = $self->_ua()->get($self->get_radar_path(%args))){
+        my $image_url;
+        my $content = $res->decoded_content();
+        warn $date;
+        if($forecast && $content =~ $FORECAST_IMAGE_REGEXP){
+            $image_url = $1;
             my $base_path = $2;
             my $area      = $3 || 'japan';
             my $datetime  = HTTP::Date::time2iso(time);
@@ -173,7 +202,7 @@ sub get_image {
             $base_path =~ s{rader}{rainmesh};
 
             $image_url = sprintf(
-                "http://%s/%d/%s_%s/large.jpg?%d",
+                "http://%s/%d/%s-%s-large.jpg?%d",
                 $base_path,
                 $forecast,
                 $area,
@@ -181,11 +210,11 @@ sub get_image {
                 $datetime
             );
         }
-        elsif($date){
+        elsif($date && $content =~ $RADAR_IMAGE_REGEXP){
             my @dt   = parse_date("$date +0900");
             my $min  = int($dt[4]/10) * 10; #分単位画像はないので43分なら40分にと切り捨てる
             $image_url = sprintf(
-               "http://%s/%02d/%02d/%02d/%02d/%02d/00/%s_%s/large.jpg",
+               "http://%s/%02d/%02d/%02d/%02d/%02d/00/%s-%s-large.jpg",
                 $2,
                 $dt[0],
                 $dt[1],
@@ -196,12 +225,11 @@ sub get_image {
                 $args{prefecture} || $self->prefecture || $args{area} || $self->{area} || 'detail',
             );
         }
+        Carp::confess('cant find image url') unless $image_url;
         $res     = $self->_ua()->get($image_url);
-        $content = $res->decoded_content();
-        return $content
+        return $res->decoded_content();
     }
-    Carp::confess('cant find image url') unless $image_url;
-  }
+    Carp::confess('cant get radar path');
 }
 
 =head2 show_prefecture_list
@@ -261,7 +289,7 @@ http access 用の User Agent を返す
 
 sub _ua {
   my $self = shift;
-  $self->{ua}  //= WWW::Mechanize->new(agent => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:8.0) Gecko/20100101 Firefox/8.0');
+  $self->{ua}  //= WWW::Mechanize->new(agent => 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:53.0) Gecko/20100101 Firefox/53.0');
   return $self->{ua};
 }
 

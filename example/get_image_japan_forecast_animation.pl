@@ -9,7 +9,7 @@ use WebService::TenkiJp::Radar::Image;
 my $gifdata;
 my @forecast = qw/60 120 180 240 300 360/;
 for my $index (0..$#forecast){
-    my $image = WebService::TenkiJp::Radar::Image->new()->get_image(forecast => $forecast[$index]);
+    my $image = WebService::TenkiJp::Radar::Image->new()->get_image(area => 3, forecast => $forecast[$index]);
 
     #一旦ファイルに保存してから GD で画像を読み込む
     my ($fh, $path ) = tempfile();

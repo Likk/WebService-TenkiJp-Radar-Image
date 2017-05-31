@@ -7,13 +7,12 @@ use HTTP::Date;
 use WebService::TenkiJp::Radar::Image;
 
 my $tenki     = WebService::TenkiJp::Radar::Image->new();
-my $yesterday = HTTP::Date::time2iso(time - (60 * 60 * 24));
+my $yesterday = HTTP::Date::time2iso(time - (60 * 60 * 2));
 
 {
-    my $tenki;
+    my $tenki = WebService::TenkiJp::Radar::Image->new();
 
     subtest 'prepare' => sub {
-        $tenki = WebService::TenkiJp::Radar::Image->new();
         isa_ok($tenki, 'WebService::TenkiJp::Radar::Image');
     };
 
