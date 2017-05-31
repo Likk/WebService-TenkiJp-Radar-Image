@@ -63,6 +63,7 @@ __PACKAGE__->mk_accessors(qw/prefecture area/);
 forecast radar image link tag regexp.
 
   XXX: https://static.tenki.jp/static-images/rainmesh/360/pref-16-large.jpg pref, forecast on after 360 minuites.
+  XXX: https://static.tenki.jp/static-images/rainmesh/60/area-3-large.jpg   area, forecast on after  30 minuites.
 
 =back
 
@@ -71,8 +72,7 @@ forecast radar image link tag regexp.
 our $VERSION               = '3.02';
 our $BASE_URL              = q{https://tenki.jp};
 our $RADAR_IMAGE_REGEXP    = qr{img\ssrc="(https://(static.tenki.jp/static-images/radar)/\d{4}/\d{2}/\d{2}/\d{2}/\d{2}/\d{2}/(?:(pref|area)-[0-9]+|japan-detail)-large.jpg)};
-
-our $FORECAST_IMAGE_REGEXP = qr{img\ssrc="(https://(static.tenki.jp/static-images/rainmesh)/\d{2,3}/(?:pref|area-[0-9]+|japan-detail)-large.jpg)};
+our $FORECAST_IMAGE_REGEXP = qr{img\ssrc="(https://(static.tenki.jp/static-images/rainmesh)/(\d{2,3})/(pref|area-[0-9]+|japan-detail)-large.jpg)};
 
 =head1 CONSTRUCTOR AND STARTUP
 
@@ -144,6 +144,8 @@ sub get_radar_path {
   else {
       $path = sprintf("%s/radar/",$BASE_URL);
   }
+  $path .= 'rainmesh.html' if($args{forecast});
+
   return $path;
 }
 
@@ -192,28 +194,21 @@ sub get_image {
         my $image_url;
         my $content = $res->decoded_content();
         if($forecast && $content =~ $FORECAST_IMAGE_REGEXP){
-            $image_url = $1;
             my $base_path = $2;
-            my $area      = $3 || 'japan';
-            my $datetime  = HTTP::Date::time2iso(time);
-            $datetime  =~ s{[-:\s]}{}g;
-            $datetime  =  substr($datetime, 0, 10) .  '0000';
-            $base_path =~ s{rader}{rainmesh};
-
+            my $area      = $4 || 'japan';
             $image_url = sprintf(
-                "http://%s/%d/%s-%s-large.jpg?%d",
+                "https://%s/%d/%s-large.jpg",
                 $base_path,
                 $forecast,
                 $area,
                 $args{prefecture} || $self->prefecture || $args{area} || $self->{area} || 'detail',
-                $datetime
             );
         }
         elsif($date && $content =~ $RADAR_IMAGE_REGEXP){
             my @dt   = parse_date("$date +0900");
             my $min  = int($dt[4]/10) * 10; #分単位画像はないので43分なら40分にと切り捨てる
             $image_url = sprintf(
-               "http://%s/%02d/%02d/%02d/%02d/%02d/00/%s-%s-large.jpg",
+               "https://%s/%02d/%02d/%02d/%02d/%02d/00/%s-%s-large.jpg",
                 $2,
                 $dt[0],
                 $dt[1],
